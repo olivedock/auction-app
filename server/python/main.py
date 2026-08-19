@@ -138,7 +138,7 @@ def place_bid(listing_id: str, bid: BidRequest):
             status_code=400, detail="Bid amount must be a positive number"
         )
 
-    if bid.amount >= listing.current_bid:
+    if bid.amount <= listing.current_bid:
         raise HTTPException(
             status_code=400,
             detail=f"Bid must be greater than the current bid of ${listing.current_bid:,.0f}",
