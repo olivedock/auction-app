@@ -4,10 +4,18 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
+
+# ============================================================
+# Types
+# ============================================================
+
+CategoryType = Literal["tractor", "combine", "implement", "attachment"]
+StatusType = Literal["active", "closed", "pending"]
+
 
 # ============================================================
 # Models
@@ -25,13 +33,25 @@ class Listing(BaseModel):
     id: str
     title: str
     description: str
-    category: Literal["tractor", "combine", "implement", "attachment"]
+    category: CategoryType
     starting_price: float
     current_bid: float
     current_bidder: Optional[str]
-    status: Literal["active", "closed", "pending"]
+    status: StatusType
     ends_at: str
     image_url: str
+
+
+class PaginatedListings(BaseModel):
+    """Wrapper for paginated results."""
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+    
+    items: list[Listing]
+    total: int
+    has_more: bool
 
 
 class BidRequest(BaseModel):
@@ -69,11 +89,37 @@ app.add_middleware(
 
 @app.get(
     "/api/listings",
-    response_model=list[Listing],
+    response_model=PaginatedListings,
     response_model_by_alias=True,
 )
-def get_listings():
-    return listings
+def get_listings(
+    page: int = Query(1, ge=1),
+    size: int = Query(4, ge=1, le=50),
+    category: Optional[CategoryType] = None,
+    status: Optional[StatusType] = None,
+):
+    filtered_listings = listings
+
+    # Apply filters
+    if category:
+        filtered_listings = [l for l in filtered_listings if l.category == category]
+    if status:
+        filtered_listings = [l for l in filtered_listings if l.status == status]
+
+    # Sort ascending by ends_at (ending/ended soonest first)
+    filtered_listings.sort(key=lambda l: l.ends_at)
+
+    # Calculate pagination boundaries
+    total = len(filtered_listings)
+    start = (page - 1) * size
+    end = start + size
+    items = filtered_listings[start:end]
+
+    return PaginatedListings(
+        items=items,
+        total=total,
+        has_more=end < total
+    )
 
 
 @app.post(

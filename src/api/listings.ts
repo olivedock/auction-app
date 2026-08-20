@@ -1,7 +1,19 @@
-import type { Listing } from "../types";
+import type { Listing, PaginatedListings } from "../types";
 
-export async function getListings(): Promise<Listing[]> {
-	const res = await fetch("/api/listings");
+export async function getListings(
+	page: number = 1,
+	size: number = 4,
+	category?: string,
+	status?: string
+): Promise<PaginatedListings> {
+	const params = new URLSearchParams();
+	params.append("page", page.toString());
+	params.append("size", size.toString());
+	
+	if (category) params.append("category", category);
+	if (status) params.append("status", status);
+
+	const res = await fetch(`/api/listings?${params.toString()}`);
 	if (!res.ok) throw new Error("Failed to fetch listings");
 	return res.json();
 }
